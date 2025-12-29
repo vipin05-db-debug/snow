@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Snow Animation - PALLU</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+        font-family: 'Times New Roman', serif;
+    }
+
+    /* --- START SCREEN OVERLAY --- */
+    #start-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color:black;
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: opacity 1.5s ease-out;
+        cursor: pointer;
+    }
+
+    #start-text {
+        color: white;
+        font-size: 14px;
+        letter-spacing: 1px;
+        opacity: 0.6;
+        animation: pulse 2s infinite;
+        text-transform: uppercase;
+        pointer-events: none;
+    }
+
+    @keyframes pulse {
+        0% { opacity: 0.3; }
+        50% { opacity: 0.8; }
+        100% { opacity: 0.3; }
+    }
+
+    @media screen and (orientation: portrait) {
+        #start-text { transform: rotate(90deg); }
+    }
+
+    /* --- CANVAS CONTAINER --- */
+    .fixed-bg {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        transition: opacity 1s ease-in;
+    }
+
+    canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    /* Force landscape rotation on portrait devices */
+    @media screen and (orientation: portrait) {
+        .fixed-bg {
+            width: 100vh;
+            height: 100vw;
+            transform: translate(-50%, -50%) rotate(90deg);
+        }
+    }
+  </style>
+</head>
+
+<body>
+
+  <audio id="bgMusic" loop>
+    <source src="OORUM BLOOD.mp3" type="audio/mpeg">
+  </audio>
+
+  <div id="start-overlay">
+    <div id="start-text">( Tap anywhere to start )</div>
+  </div>
+
+  <div class="fixed-bg" id="canvas-container">
+    <canvas></canvas>
+  </div>
+
+  <script src='https://unpkg.com/gsap@3/dist/gsap.min.js'></script>
+  <script>
+    // --- SETUP VARIABLES ---
+    const overlay = document.getElementById('start-overlay');
+    const container = document.getElementById('canvas-container');
+    const audio = document.getElementById('bgMusic');
+    let isPlaying = false;
+    
+    // Flags for timing events
+    let allowSticking = false; 
+    let beatDropActive = false; 
+
+    // --- OPTIMIZATION: PRE-RENDER FLOWER ---
+    const flowerCanvas = document.createElement('canvas');
+    flowerCanvas.width = 50;
+    flowerCanvas.height = 50;
+    const fCtx = flowerCanvas.getContext('2d');
+    fCtx.font = "40px Arial";
+    fCtx.textAlign = "center";
+    fCtx.textBaseline = "middle";
+    fCtx.fillText('🌸', 25, 25);
+
+    // --- CLICK TO START LOGIC ---
+    overlay.addEventListener('click', () => {
+        if (isPlaying) return;
+        isPlaying = true;
+
+        // 1. Play Audio
+        audio.play().catch(e => console.log("Audio play failed: ", e));
+
+        // 2. UI Transitions
+        overlay.style.opacity = '0';
+        container.style.opacity = '1';
+        
+        // 3. Start Animation Loop
+        gsap.ticker.add(render);
+
+        // 4. TIMING: Allow snow to stick after 3 seconds
+        setTimeout(() => { 
+            allowSticking = true; 
+        }, 3000); 
+
+        // 5. TIMING: Beat Drop at 48 seconds (Flowers + Glow)
+        setTimeout(() => { 
+            beatDropActive = true; 
+        }, 40000); // Note: You had this at 8000 (8s) for testing, change to 48000 for full song
+
+        // Remove overlay from DOM
+        setTimeout(() => { overlay.style.display = 'none'; }, 1500);
+    });
+
+    // --- SNOW ANIMATION LOGIC ---
+    const arr = []; 
+    const c = document.querySelector("canvas");
+    const ctx = c.getContext("2d");
+    
+    // High Res Canvas
+    const cw = (c.width = 4000);
+    const ch = (c.height = 3000);
+    
+    const c2 = c.cloneNode(true);
+    const ctx2 = c2.getContext("2d", { willReadFrequently: true });
+
+    // --- TEXT SETTINGS (MODIFIED: Made smaller) ---
+    ctx2.fillStyle = "white";
+    ctx2.textAlign = "center";
+    ctx2.textBaseline = "middle";
+    // CHANGED: Size reduced from 800px to 550px
+    ctx2.font = "bold 700px 'Times New Roman', serif"; 
+    
+    const text = "P A L L U"; 
+    ctx2.fillText(text, cw / 2, ch / 2); 
+
+    // Create initial particles
+    for (let i = 0; i < 1500; i++) makeFlake(i, true);
+
+    function makeFlake(i, ff) {
+      let type = 'snow';
+      
+      if (beatDropActive && Math.random() < 0.05) {
+          type = 'flower';
+      }
+
+      arr.push({ i: i, x: 0, x2: 0, y: 0, s: 0, type: type })
+      
+      arr[i].t = gsap.timeline({ repeat: -1, repeatRefresh: true })
+        .fromTo(arr[i], {
+          x: () => -400 + (cw + 800) * Math.random(),
+          y: -15,
+          // CHANGED: Increased snow size (was 1.8, 7) -> Now (5, 15)
+          s: () => 'random(2, 10, .1)', 
+          x2: -500
+        }, {
+          ease: 'none',
+          y: ch, 
+          x: '+=' + 'random(-400, 400, 1)',
+          x2: 500
+        })
+        .seek(ff ? Math.random() * 99 : 0)
+        .timeScale(arr[i].s / 37)
+    }
+
+    ctx.fillStyle = "#fff";
+
+    function render() {
+      ctx.clearRect(0, 0, cw, ch);
+      
+      // Draw faint background text
+      if(allowSticking) {
+          ctx.globalAlpha = 0.03;
+          // CHANGED: Reduced background text size to match proportion
+          ctx.font = "bold 0px 'Times New Roman', serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(text, cw / 2, ch / 2);
+          ctx.globalAlpha = 1.0;
+      }
+
+      arr.forEach((c) => {
+        // --- STICKING LOGIC ---
+        if (c.t) {
+          if (c.t.isActive()) {
+            const d = ctx2.getImageData(c.x + c.x2, c.y, 1, 1);
+            
+            // CHANGED: Changed 0.4 to 0.92
+            // This means a much LOWER chance to stick (only high random rolls stick)
+            // Effectively reduces stickiness by about 80%
+            if (d.data[3] > 100 && Math.random() > 0.4 && allowSticking) {
+              c.t.pause();
+              // Create replacement flake
+              if (arr.length < 15000) makeFlake(arr.length - 1, false);
+            }
+          }
+        }
+
+        // --- DRAWING LOGIC ---
+        
+        // GLOW EFFECT
+        if (beatDropActive && !c.t.isActive() && c.type === 'snow') {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = "pink"; 
+        } else {
+            ctx.shadowBlur = 0;
+        }
+
+        if (c.type === 'flower') {
+            const size = c.s * 10; 
+            ctx.drawImage(flowerCanvas, c.x + c.x2, c.y, size, size);
+        } else {
+            // Draw Snowball
+            ctx.beginPath();
+            // CHANGED: Removed the interpolate reduction so they stay bigger
+            // Using c.s directly ensures the larger size we set earlier is visible
+            ctx.arc(c.x + c.x2, c.y, c.s, 0, Math.PI * 4);
+            ctx.fillStyle = "#fff";
+            ctx.fill();
+        }
+      });
+    }
+  </script>
+</body>
+
+</html>
